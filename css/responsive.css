@@ -58,14 +58,17 @@
   }
 
   .pos-layout {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     height: auto;
     overflow: visible;
+    min-width: 0;
   }
 
   .pos-products {
     overflow: visible;
     min-height: 400px; /* Ensure there is room for products */
+    min-width: 0;
   }
 
   .pos-cart {

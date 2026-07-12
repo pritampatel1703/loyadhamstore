@@ -547,20 +547,28 @@
     padding: 0 !important;
   }
 
-  /* Show the receipt container and format it for an 80mm roll */
+  /* Show the receipt container */
   #print-receipt-container {
     display: block !important;
-    width: 80mm; /* Standard thermal printer width */
     margin: 0 auto;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
     color: black;
   }
+
+  #print-receipt-container.receipt-thermal {
+    width: 80mm; /* Standard thermal printer width */
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+  }
+
+  #print-receipt-container.invoice-a4 {
+    width: 100%; /* Full A4 page width */
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+  }
   
-  /* Reset page margins to avoid blank pages or headers/footers */
+  /* Reset page margins */
   @page {
     margin: 0;
-    size: auto;
   }
 
   body {

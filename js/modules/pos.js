@@ -568,6 +568,7 @@ const POSModule = {
       
       items.push({
         product_id: p.id,
+        product_name: p.name,
         qty: item.qty,
         price: p.selling_price,
         total: itemTotal
@@ -636,19 +637,50 @@ const POSModule = {
       + '<div style="font-size:48px; margin-bottom: 16px;">✅</div>'
       + '<h3 class="mb-2">Invoice Generated!</h3>'
       + '<p class="text-secondary font-mono mb-6">' + sale.invoice_no + '</p>'
-      + '<div class="d-flex gap-3 justify-center">'
+      + '<div class="d-flex gap-3 justify-center flex-wrap">'
       + '<button class="btn btn-outline" onclick="Modal.close()">New Sale</button>'
-      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)})'><span style="margin-right: 8px;">🖨️</span>Print Bill</button>`
+      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "thermal")'><span style="margin-right: 8px;">🧾</span>Thermal Receipt</button>`
+      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "a4")'><span style="margin-right: 8px;">📄</span>A4 Invoice</button>`
       + '</div>'
       + '<div class="text-center mt-4"><a href="#/sales" onclick="Modal.close()" class="text-primary text-sm" style="text-decoration: underline;">View Sales History</a></div>'
       + '</div>';
-    Modal.show('Sale Complete', body, 'sm');
+    Modal.show('Sale Complete', body, 'md');
   },
 
-  printReceipt(sale, items) {
+  printReceipt(sale, items, format = 'thermal') {
     const container = document.getElementById('print-receipt-container');
     if (!container) return;
 
+    // Inject @page size style dynamically
+    let styleTag = document.getElementById('print-page-style');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'print-page-style';
+      document.head.appendChild(styleTag);
+    }
+
+    const dateStr = new Date(sale.date).toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    if (format === 'a4') {
+      styleTag.innerHTML = '@page { size: A4 portrait; margin: 15mm; }';
+      container.className = 'invoice-a4';
+      container.innerHTML = this.generateA4InvoiceHtml(sale, items, dateStr);
+    } else {
+      styleTag.innerHTML = '@page { size: 80mm auto; margin: 0; }';
+      container.className = 'receipt-thermal';
+      container.innerHTML = this.generateThermalReceiptHtml(sale, items, dateStr);
+    }
+
+    // Small delay to allow CSS parsing
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  },
+
+  generateThermalReceiptHtml(sale, items, dateStr) {
     let itemsHtml = '';
     items.forEach(item => {
       itemsHtml += `
@@ -659,12 +691,7 @@ const POSModule = {
       `;
     });
 
-    const dateStr = new Date(sale.date).toLocaleString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-
-    const receiptHtml = `
+    return `
       <div style="padding: 10px; width: 100%; box-sizing: border-box;">
         <div style="text-align: center; margin-bottom: 15px;">
           <h2 style="margin: 0; font-size: 18px; font-weight: bold;">LOYADHAM STORE</h2>
@@ -712,8 +739,124 @@ const POSModule = {
         </div>
       </div>
     `;
+  },
 
-    container.innerHTML = receiptHtml;
-    window.print();
-  }
+  generateA4InvoiceHtml(sale, items, dateStr) {
+    let itemsHtml = '';
+    items.forEach((item, index) => {
+      // Find item name via products db? We didn't pass name in `items`, 
+      // let's just display "Product ID: " if name is missing. Wait, we should pass the name!
+      // In POSModule.processSale, we only saved product_id in items. 
+      // But we CAN look it up or just show ID. For now let's just show it nicely.
+      // Wait, in processSale we do have `this.cart` which has `item.product.name`.
+      // We should include product name in the `items` array sent to printReceipt!
+      // Since it's not there, we will display generic or look it up.
+      // I'll update processSale slightly to include product_name in the `items` array sent to printReceipt!
+      // For now, assume `item.product_name` exists (I will update processSale).
+      itemsHtml += `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">${index + 1}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.product_name || ('Item #' + item.product_id)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${Utils.currency(item.price)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${Utils.currency(item.total)}</td>
+        </tr>
+      `;
+    });
+
+    return `
+      <div style="width: 100%; box-sizing: border-box; font-family: Arial, sans-serif; color: #333;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+          <div>
+            <h1 style="margin: 0; font-size: 28px; color: #1a1a1a;">LOYADHAM STORE</h1>
+            <p style="margin: 5px 0; color: #555;">123 Business Avenue, City, State 12345</p>
+            <p style="margin: 5px 0; color: #555;">Phone: +91 9876543210</p>
+          </div>
+          <div style="text-align: right;">
+            <h2 style="margin: 0; font-size: 32px; color: #555; text-transform: uppercase;">Tax Invoice</h2>
+          </div>
+        </div>
+
+        <!-- Meta Info -->
+        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+          <div>
+            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1a1a1a;">Billed To:</h3>
+            <p style="margin: 0; color: #555;"><strong>${sale.customer_name || 'Walk-in Customer'}</strong></p>
+            ${sale.customer_id ? '<p style="margin: 5px 0; color: #555;">Customer ID: ' + sale.customer_id + '</p>' : ''}
+          </div>
+          <div style="text-align: right;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 2px 10px; font-weight: bold; text-align: right;">Invoice No:</td>
+                <td style="padding: 2px 0; text-align: right;">${sale.invoice_no}</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 10px; font-weight: bold; text-align: right;">Date:</td>
+                <td style="padding: 2px 0; text-align: right;">${dateStr}</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 10px; font-weight: bold; text-align: right;">Cashier:</td>
+                <td style="padding: 2px 0; text-align: right;">${sale.user}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <thead>
+            <tr style="background: #f8f9fa;">
+              <th style="padding: 12px 10px; border-bottom: 2px solid #ddd; text-align: center; width: 50px;">#</th>
+              <th style="padding: 12px 10px; border-bottom: 2px solid #ddd; text-align: left;">Description</th>
+              <th style="padding: 12px 10px; border-bottom: 2px solid #ddd; text-align: right; width: 120px;">Unit Price</th>
+              <th style="padding: 12px 10px; border-bottom: 2px solid #ddd; text-align: center; width: 80px;">Qty</th>
+              <th style="padding: 12px 10px; border-bottom: 2px solid #ddd; text-align: right; width: 120px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <!-- Totals & Notes -->
+        <div style="display: flex; justify-content: space-between;">
+          <div style="width: 50%;">
+            <h4 style="margin: 0 0 10px 0;">Payment Details</h4>
+            <p style="margin: 5px 0;">Method: <strong>${sale.payment_method.toUpperCase()}</strong></p>
+            <p style="margin: 5px 0;">Status: <strong>Paid</strong></p>
+          </div>
+          <div style="width: 40%;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 5px; text-align: right;">Subtotal:</td>
+                <td style="padding: 5px; text-align: right;">${Utils.currency(sale.subtotal)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px; text-align: right;">GST:</td>
+                <td style="padding: 5px; text-align: right;">${Utils.currency(sale.gst_total)}</td>
+              </tr>
+              ${sale.discount > 0 ? `
+              <tr>
+                <td style="padding: 5px; text-align: right;">Discount:</td>
+                <td style="padding: 5px; text-align: right; color: #dc3545;">-${Utils.currency(sale.discount)}</td>
+              </tr>
+              ` : ''}
+              <tr>
+                <td style="padding: 10px 5px; text-align: right; font-weight: bold; font-size: 18px; border-top: 2px solid #333;">Grand Total:</td>
+                <td style="padding: 10px 5px; text-align: right; font-weight: bold; font-size: 18px; border-top: 2px solid #333;">${Utils.currency(sale.total)}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="margin-top: 50px; text-align: center; color: #555; border-top: 1px solid #ddd; padding-top: 20px;">
+          <p style="margin: 0;">Thank you for your business!</p>
+          <p style="margin: 5px 0; font-size: 12px;">This is a computer-generated invoice and does not require a physical signature.</p>
+        </div>
+
+      </div>
+    `;
 };

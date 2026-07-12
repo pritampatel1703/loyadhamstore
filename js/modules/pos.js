@@ -859,4 +859,5 @@ const POSModule = {
 
       </div>
     `;
+  }
 };

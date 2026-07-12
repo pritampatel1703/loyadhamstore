@@ -16,6 +16,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0; /* Prevent flex children from overflowing viewport on mobile */
 }
 
 .app-layout.sidebar-collapsed .app-main {
@@ -27,6 +28,7 @@
   padding: var(--space-6);
   padding-top: calc(var(--header-height) + var(--space-6));
   width: 100%;
+  min-width: 0; /* Prevent horizontal overflow */
   transition: opacity 150ms ease, transform 150ms ease;
 }
 

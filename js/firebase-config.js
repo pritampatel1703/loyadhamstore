@@ -12,10 +12,11 @@
    ============================================ */
 
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID"
+  apiKey: "AIzaSyBpTILMMeudCn7bLjPIsxtiATFUjk2eX5U",
+  authDomain: "loyadham-store.firebaseapp.com",
+  projectId: "loyadham-store",
+  storageBucket: "loyadham-store.firebasestorage.app",
+  messagingSenderId: "689580637999",
+  appId: "1:689580637999:web:7512d74edbd77680236bda",
+  measurementId: "G-MRD6L9PN6J"
 };

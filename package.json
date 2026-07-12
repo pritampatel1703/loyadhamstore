@@ -1,0 +1,9 @@
+{
+  "name": "loyadham-store",
+  "version": "1.0.0",
+  "description": "Loyadham Store Management System",
+  "scripts": {
+    "start": "npx serve -s . -l $PORT",
+    "dev": "npx serve -s . -l 8080"
+  }
+}

@@ -74,7 +74,7 @@
   .pos-cart {
     border-left: none;
     border-top: 1px solid var(--border-light);
-    max-height: 50vh;
+    max-height: none; /* Let cart expand on mobile, relying on full page scroll */
   }
 
   .settings-layout {

@@ -191,6 +191,7 @@
   padding: var(--space-4);
   background: var(--bg-card);
   border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .pos-cart-title {
@@ -207,6 +208,7 @@
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-card);
+  flex-shrink: 0;
 }
 
 .pos-cart-customer-btn {
@@ -359,6 +361,7 @@
   padding: var(--space-4);
   background: var(--bg-card);
   border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .pos-summary-row {
@@ -395,6 +398,7 @@
   padding: var(--space-4);
   padding-top: 0;
   background: var(--bg-card);
+  flex-shrink: 0;
 }
 
 .pos-cart-actions .btn {

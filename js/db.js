@@ -1,12 +1,16 @@
 /* ============================================
    LOYADHAM STORE MANAGEMENT
-   IndexedDB Database Layer with Seed Data
+   Firebase Firestore Database Layer
+   
+   Drop-in replacement for IndexedDB.
+   Same API: LoyDB.add(), get(), getAll(), put(), delete()
+   All modules work without ANY changes.
    ============================================ */
 
 const LoyDB = {
-  db: null,
-  DB_NAME: 'LoyadhamStoreDB',
-  DB_VERSION: 1,
+  db: null, // Firestore instance
+  _cache: {}, // In-memory cache for performance
+  _counterCache: {}, // Track auto-increment IDs
 
   STORES: [
     'users', 'branches', 'products', 'categories', 'suppliers', 'customers',
@@ -16,132 +20,196 @@ const LoyDB = {
   ],
 
   async init() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+    try {
+      // Initialize Firebase
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      this.db = firebase.firestore();
+      
+      // Enable offline persistence for better performance
+      try {
+        await this.db.enablePersistence({ synchronizeTabs: true });
+      } catch (err) {
+        if (err.code === 'failed-precondition') {
+          console.warn('Firestore persistence: Multiple tabs open, persistence enabled in first tab only.');
+        } else if (err.code === 'unimplemented') {
+          console.warn('Firestore persistence: Browser does not support persistence.');
+        }
+      }
 
-      request.onerror = () => reject(request.error);
+      // Pre-load counters
+      await this._loadCounters();
 
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        this.STORES.forEach(name => {
-          if (!db.objectStoreNames.contains(name)) {
-            const store = db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
-            // Add useful indexes
-            if (name === 'products') {
-              store.createIndex('code', 'code', { unique: true });
-              store.createIndex('category', 'category', { unique: false });
-              store.createIndex('branch_id', 'branch_id', { unique: false });
-            }
-            if (name === 'sales' || name === 'purchases') {
-              store.createIndex('branch_id', 'branch_id', { unique: false });
-              store.createIndex('date', 'date', { unique: false });
-            }
-            if (name === 'customers' || name === 'suppliers') {
-              store.createIndex('phone', 'phone', { unique: false });
-            }
-            if (name === 'sale_items' || name === 'purchase_items') {
-              store.createIndex('ref_id', 'ref_id', { unique: false });
-            }
-            if (name === 'notifications') {
-              store.createIndex('read', 'read', { unique: false });
-            }
-            if (name === 'activities') {
-              store.createIndex('date', 'date', { unique: false });
-            }
-          }
-        });
-      };
-
-      request.onsuccess = (e) => {
-        this.db = e.target.result;
-        resolve(this.db);
-      };
-    });
+      console.log('🔥 Firebase Firestore initialized successfully!');
+      return this.db;
+    } catch (err) {
+      console.error('Firebase init failed:', err);
+      throw err;
+    }
   },
 
-  // Generic CRUD operations
+  // ---- Counter Management (for auto-increment IDs) ----
+  async _loadCounters() {
+    const counterDoc = await this.db.collection('_meta').doc('counters').get();
+    if (counterDoc.exists) {
+      this._counterCache = counterDoc.data();
+    } else {
+      // Initialize counters
+      this._counterCache = {};
+      this.STORES.forEach(s => { this._counterCache[s] = 0; });
+      await this.db.collection('_meta').doc('counters').set(this._counterCache);
+    }
+  },
+
+  async _nextId(storeName) {
+    const current = this._counterCache[storeName] || 0;
+    const next = current + 1;
+    this._counterCache[storeName] = next;
+    // Update in Firestore
+    await this.db.collection('_meta').doc('counters').update({
+      [storeName]: next
+    });
+    return next;
+  },
+
+  async _syncCounter(storeName) {
+    // Make sure counter is >= max existing ID
+    const snapshot = await this.db.collection(storeName).orderBy('id', 'desc').limit(1).get();
+    if (!snapshot.empty) {
+      const maxId = snapshot.docs[0].data().id;
+      if (maxId >= (this._counterCache[storeName] || 0)) {
+        this._counterCache[storeName] = maxId;
+        await this.db.collection('_meta').doc('counters').update({
+          [storeName]: maxId
+        });
+      }
+    }
+  },
+
+  // ---- CRUD Operations (same API as IndexedDB version) ----
+
   async add(storeName, data) {
     data.created_at = data.created_at || new Date().toISOString();
     data.updated_at = new Date().toISOString();
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.add(data);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+
+    // If data already has an id, use it; otherwise auto-increment
+    if (data.id === undefined || data.id === null) {
+      data.id = await this._nextId(storeName);
+    } else {
+      // Ensure counter stays ahead
+      if (data.id > (this._counterCache[storeName] || 0)) {
+        this._counterCache[storeName] = data.id;
+        await this.db.collection('_meta').doc('counters').update({
+          [storeName]: data.id
+        });
+      }
+    }
+
+    // Use numeric ID as document key (as string)
+    const docRef = this.db.collection(storeName).doc(String(data.id));
+    await docRef.set(data);
+
+    // Update cache
+    if (this._cache[storeName]) {
+      this._cache[storeName] = null; // Invalidate cache
+    }
+
+    return data.id;
   },
 
   async put(storeName, data) {
     data.updated_at = new Date().toISOString();
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.put(data);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+
+    if (!data.id) {
+      throw new Error('Cannot update without id');
+    }
+
+    const docRef = this.db.collection(storeName).doc(String(data.id));
+    await docRef.set(data, { merge: false });
+
+    // Invalidate cache
+    if (this._cache[storeName]) {
+      this._cache[storeName] = null;
+    }
+
+    return data.id;
   },
 
   async get(storeName, id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.get(id);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    if (id === undefined || id === null) return null;
+
+    const docRef = this.db.collection(storeName).doc(String(id));
+    const doc = await docRef.get();
+
+    if (doc.exists) {
+      return doc.data();
+    }
+    return undefined;
   },
 
   async getAll(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
+    // Use cache if available (invalidated on writes)
+    if (this._cache[storeName]) {
+      return [...this._cache[storeName]];
+    }
+
+    const snapshot = await this.db.collection(storeName).get();
+    const results = [];
+    snapshot.forEach(doc => {
+      results.push(doc.data());
     });
+
+    // Sort by id for consistent ordering
+    results.sort((a, b) => (a.id || 0) - (b.id || 0));
+
+    // Cache it
+    this._cache[storeName] = results;
+    return [...results];
   },
 
   async delete(storeName, id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    if (id === undefined || id === null) return;
+
+    const docRef = this.db.collection(storeName).doc(String(id));
+    await docRef.delete();
+
+    // Invalidate cache
+    this._cache[storeName] = null;
   },
 
   async clear(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.clear();
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+    const snapshot = await this.db.collection(storeName).get();
+    const batch = this.db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
     });
+    await batch.commit();
+
+    // Reset counter
+    this._counterCache[storeName] = 0;
+    await this.db.collection('_meta').doc('counters').update({
+      [storeName]: 0
+    });
+
+    // Invalidate cache
+    this._cache[storeName] = null;
   },
 
   async count(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.count();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    const snapshot = await this.db.collection(storeName).get();
+    return snapshot.size;
   },
 
   async getByIndex(storeName, indexName, value) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const index = store.index(indexName);
-      const request = index.getAll(value);
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
+    const snapshot = await this.db.collection(storeName)
+      .where(indexName, '==', value)
+      .get();
+    const results = [];
+    snapshot.forEach(doc => {
+      results.push(doc.data());
     });
+    return results;
   },
 
   async query(storeName, filterFn) {
@@ -149,10 +217,17 @@ const LoyDB = {
     return filterFn ? all.filter(filterFn) : all;
   },
 
-  // Seed demo data
+  // Invalidate all caches (useful after bulk operations)
+  clearCache() {
+    this._cache = {};
+  },
+
+  // ---- Seed Demo Data ----
   async seed() {
     const count = await this.count('users');
     if (count > 0) return; // Already seeded
+
+    console.log('🌱 Seeding Loyadham Store database...');
 
     // Branches
     const branches = [
@@ -251,7 +326,7 @@ const LoyDB = {
     let saleItemId = 1;
 
     for (let d = 29; d >= 0; d--) {
-      const salesCount = Math.floor(Math.random() * 5) + 2; // 2-6 sales per day
+      const salesCount = Math.floor(Math.random() * 5) + 2;
       for (let s = 0; s < salesCount; s++) {
         const date = new Date(now);
         date.setDate(date.getDate() - d);
@@ -267,6 +342,7 @@ const LoyDB = {
           saleItemsList.push({
             id: saleItemId++,
             ref_id: saleId,
+            sale_id: saleId,
             product_id: prod.id,
             product_name: prod.name,
             price: prod.selling_price,
@@ -281,26 +357,27 @@ const LoyDB = {
         const payMethods = ['cash', 'upi', 'card', 'cash', 'cash', 'upi'];
         sales.push({
           id: saleId,
-          invoice_no: `LY-INV-${String(saleId).padStart(5, '0')}`,
+          invoice_no: 'LY-INV-' + String(saleId).padStart(5, '0'),
           date: date.toISOString(),
           customer_id: customers[Math.floor(Math.random() * customers.length)].id,
           branch_id: 1,
           subtotal,
+          gst_total: gstAmount,
           discount,
-          gst: gstAmount,
           total: grandTotal,
           payment_method: payMethods[Math.floor(Math.random() * payMethods.length)],
           status: 'completed',
           cashier_id: 4,
           type: 'counter',
           items_count: itemCount,
+          user: 'Priya Sharma',
         });
         saleItems.push(...saleItemsList);
         saleId++;
       }
     }
 
-    // Sample purchases
+    // Purchases
     const purchases = [
       { id: 1, po_number: 'LY-PO-00001', date: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(), supplier_id: 1, branch_id: 1, subtotal: 25000, gst: 0, total: 25000, status: 'received', payment_status: 'paid', notes: 'Monthly book restock' },
       { id: 2, po_number: 'LY-PO-00002', date: new Date(now.getFullYear(), now.getMonth(), 5).toISOString(), supplier_id: 2, branch_id: 1, subtotal: 12000, gst: 1440, total: 13440, status: 'received', payment_status: 'partial', paid_amount: 8000, notes: 'Puja items restock' },
@@ -368,11 +445,23 @@ const LoyDB = {
       { id: 5, type: 'expense', category: 'Transport', amount: 2000, date: new Date(Date.now() - 86400000).toISOString(), description: 'Stock delivery transport', payment_mode: 'cash', branch_id: 1, reference: 'Receipt #T-445' },
     ];
 
-    // Insert all seed data
+    // Use batched writes for performance (Firestore max 500 per batch)
     const seedStore = async (name, data) => {
-      for (const item of data) {
-        await this.add(name, item);
+      // Process in batches of 400
+      for (let i = 0; i < data.length; i += 400) {
+        const batch = this.db.batch();
+        const chunk = data.slice(i, i + 400);
+        chunk.forEach(item => {
+          item.created_at = item.created_at || new Date().toISOString();
+          item.updated_at = new Date().toISOString();
+          const docRef = this.db.collection(name).doc(String(item.id));
+          batch.set(docRef, item);
+        });
+        await batch.commit();
       }
+      // Update counter
+      const maxId = Math.max(...data.map(d => d.id));
+      this._counterCache[name] = maxId;
     };
 
     await seedStore('branches', branches);
@@ -392,17 +481,19 @@ const LoyDB = {
     await seedStore('stock_transfers', transfers);
     await seedStore('accounts', accountEntries);
 
-    console.log('✅ Loyadham Store DB seeded successfully!');
+    // Save all counters
+    await this.db.collection('_meta').doc('counters').set(this._counterCache);
+
+    console.log('✅ Loyadham Store DB seeded successfully to Firestore!');
   },
 
-  // Helper: get product stock status
+  // ---- Helper Methods ----
   getStockStatus(product) {
     if (product.current_stock <= 0) return 'out-of-stock';
     if (product.current_stock <= product.min_stock) return 'low-stock';
     return 'in-stock';
   },
 
-  // Helper: get next code
   async getNextCode(prefix) {
     const all = await this.getAll('products');
     const matching = all.filter(p => p.code && p.code.startsWith(prefix));
@@ -410,12 +501,11 @@ const LoyDB = {
       const num = parseInt(p.code.split('-').pop()) || 0;
       return num > max ? num : max;
     }, 0);
-    return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+    return prefix + String(maxNum + 1).padStart(3, '0');
   },
 
-  // Helper: get next invoice number
   async getNextInvoice() {
     const sales = await this.getAll('sales');
-    return `LY-INV-${String(sales.length + 1).padStart(5, '0')}`;
+    return 'LY-INV-' + String(sales.length + 1).padStart(5, '0');
   }
 };

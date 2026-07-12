@@ -637,12 +637,14 @@ const POSModule = {
       + '<div style="font-size:48px; margin-bottom: 16px;">✅</div>'
       + '<h3 class="mb-2">Invoice Generated!</h3>'
       + '<p class="text-secondary font-mono mb-6">' + sale.invoice_no + '</p>'
-      + '<div class="d-flex gap-3 justify-center flex-wrap">'
-      + '<button class="btn btn-outline" onclick="Modal.close()">New Sale</button>'
-      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "thermal")'><span style="margin-right: 8px;">🧾</span>Thermal Receipt</button>`
-      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "a4")'><span style="margin-right: 8px;">📄</span>A4 Invoice</button>`
+      + '<div class="d-flex gap-2 justify-center flex-wrap mb-4">'
+      + `<button class="btn btn-primary" onclick='App.navigate("sales/view/" + ${sale.id}); Modal.close();'><span style="margin-right: 6px;">👁️</span>View Invoice</button>`
+      + `<button class="btn btn-outline" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "thermal")'><span style="margin-right: 6px;">🧾</span>Print Thermal</button>`
+      + `<button class="btn btn-outline" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)}, "a4")'><span style="margin-right: 6px;">📄</span>Print A4</button>`
       + '</div>'
-      + '<div class="text-center mt-4"><a href="#/sales" onclick="Modal.close()" class="text-primary text-sm" style="text-decoration: underline;">View Sales History</a></div>'
+      + '<div class="d-flex justify-center">'
+      + '<button class="btn btn-secondary w-100" style="max-width:240px;" onclick="Modal.close()">🛒 Start New Sale</button>'
+      + '</div>'
       + '</div>';
     Modal.show('Sale Complete', body, 'md');
   },

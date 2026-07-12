@@ -1,5 +1,7 @@
 /* ============================================
    POS MODULE (Point of Sale)
+   With Hardware Barcode Scanner Auto-Add
+   and Mobile Camera Barcode Scanning
    ============================================ */
 
 const POSModule = {
@@ -10,6 +12,12 @@ const POSModule = {
   searchQuery: '',
   discount: 0,
   customer: null,
+
+  // Barcode scanner state
+  _barcodeBuffer: '',
+  _barcodeTimeout: null,
+  _scannerListenerActive: false,
+  _html5QrCode: null,
 
   async render(container) {
     this.cart = [];
@@ -32,7 +40,7 @@ const POSModule = {
               <span class="search-icon">🔍</span>
               <input type="text" class="pos-search-input" id="pos-search" placeholder="Search product by name, code, barcode..." oninput="POSModule.handleSearch(this.value)">
             </div>
-            <button class="pos-scanner-btn" title="Barcode Scanner">📷</button>
+            <button class="pos-scanner-btn" title="Open Camera Scanner" onclick="POSModule.openCameraScanner()">📷</button>
           </div>
           
           <div class="pos-categories" id="pos-categories"></div>
@@ -90,7 +98,198 @@ const POSModule = {
 
     this.renderCategories();
     this.renderProducts();
+
+    // Activate hardware barcode scanner listener
+    this.startScannerListener();
   },
+
+  // =============================================
+  // HARDWARE BARCODE SCANNER — Global Listener
+  // Detects rapid keystrokes + Enter as barcode
+  // =============================================
+  startScannerListener() {
+    if (this._scannerListenerActive) return;
+    this._scannerListenerActive = true;
+
+    this._keydownHandler = (e) => {
+      // Ignore if user is typing in a regular input/textarea (not search)
+      const active = document.activeElement;
+      const isSearchInput = active && active.id === 'pos-search';
+      const isFormInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && !isSearchInput;
+      if (isFormInput) return;
+
+      // If Enter key is pressed and we have buffered chars
+      if (e.key === 'Enter') {
+        if (this._barcodeBuffer.length >= 4) {
+          e.preventDefault();
+          this.autoAddByBarcode(this._barcodeBuffer.trim());
+        }
+        this._barcodeBuffer = '';
+        clearTimeout(this._barcodeTimeout);
+        return;
+      }
+
+      // Only accept printable characters
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this._barcodeBuffer += e.key;
+
+        // Reset buffer after 100ms of inactivity
+        // Hardware scanners type the whole barcode in < 50ms
+        clearTimeout(this._barcodeTimeout);
+        this._barcodeTimeout = setTimeout(() => {
+          this._barcodeBuffer = '';
+        }, 100);
+      }
+    };
+
+    document.addEventListener('keydown', this._keydownHandler);
+  },
+
+  stopScannerListener() {
+    if (this._keydownHandler) {
+      document.removeEventListener('keydown', this._keydownHandler);
+    }
+    this._scannerListenerActive = false;
+    this._barcodeBuffer = '';
+  },
+
+  // =============================================
+  // AUTO-ADD BY BARCODE
+  // Used by both hardware scanner and camera
+  // =============================================
+  autoAddByBarcode(barcode) {
+    barcode = barcode.trim();
+    if (!barcode) return;
+
+    // Search by barcode first, then by product code
+    const product = this.products.find(p =>
+      (p.barcode && p.barcode === barcode) ||
+      (p.code && p.code.toUpperCase() === barcode.toUpperCase())
+    );
+
+    if (product) {
+      this.addToCart(product.id);
+      this.playBeep(800, 150); // Success beep
+      Toast.show('Scanned', product.name + ' added to cart', 'success');
+
+      // Flash the search input green briefly
+      const searchInput = document.getElementById('pos-search');
+      if (searchInput) {
+        searchInput.style.borderColor = 'var(--success)';
+        searchInput.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+        setTimeout(() => {
+          searchInput.style.borderColor = '';
+          searchInput.style.boxShadow = '';
+        }, 600);
+      }
+    } else {
+      this.playBeep(300, 300); // Error beep (low tone, longer)
+      Toast.show('Not Found', 'No product found for barcode: ' + barcode, 'error');
+    }
+  },
+
+  // Web Audio API beep — no external sound files needed
+  playBeep(frequency, duration) {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gainNode.gain.value = 0.3;
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration / 1000);
+    } catch (e) {
+      // Silently ignore if Audio API is not available
+    }
+  },
+
+  // =============================================
+  // MOBILE CAMERA BARCODE SCANNER
+  // Uses html5-qrcode library
+  // =============================================
+  openCameraScanner() {
+    // Check if library is loaded
+    if (typeof Html5Qrcode === 'undefined') {
+      Toast.show('Not Available', 'Camera scanner library not loaded. Check your internet connection.', 'error');
+      return;
+    }
+
+    // Create the scanner modal overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'scanner-overlay';
+    overlay.className = 'scanner-overlay';
+    overlay.innerHTML = '<div class="scanner-modal">'
+      + '<div class="scanner-header">'
+      + '<h3>📷 Scan Barcode</h3>'
+      + '<button class="scanner-close-btn" onclick="POSModule.closeCameraScanner()">✕</button>'
+      + '</div>'
+      + '<div id="qr-reader" class="scanner-viewfinder"></div>'
+      + '<p class="scanner-hint">Point your camera at a barcode to scan</p>'
+      + '</div>';
+
+    document.body.appendChild(overlay);
+
+    // Small delay to let DOM render
+    setTimeout(() => {
+      this._html5QrCode = new Html5Qrcode('qr-reader');
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 280, height: 150 },
+        aspectRatio: 1.5,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE,
+        ]
+      };
+
+      this._html5QrCode.start(
+        { facingMode: 'environment' }, // Use rear camera
+        config,
+        (decodedText) => {
+          // Success callback
+          this.closeCameraScanner();
+          this.autoAddByBarcode(decodedText);
+        },
+        () => {
+          // Ignore per-frame scan failures (normal behavior)
+        }
+      ).catch(err => {
+        console.error('Camera error:', err);
+        this.closeCameraScanner();
+        Toast.show('Camera Error', 'Could not access camera. Make sure you are on HTTPS and allow camera permission.', 'error');
+      });
+    }, 300);
+  },
+
+  closeCameraScanner() {
+    if (this._html5QrCode) {
+      this._html5QrCode.stop().then(() => {
+        this._html5QrCode.clear();
+        this._html5QrCode = null;
+      }).catch(() => {
+        this._html5QrCode = null;
+      });
+    }
+    const overlay = document.getElementById('scanner-overlay');
+    if (overlay) overlay.remove();
+  },
+
+  // =============================================
+  // EXISTING POS LOGIC (unchanged below)
+  // =============================================
 
   renderCategories() {
     const container = document.getElementById('pos-categories');

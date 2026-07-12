@@ -60,6 +60,12 @@
   .pos-layout {
     grid-template-columns: 1fr;
     height: auto;
+    overflow: visible;
+  }
+
+  .pos-products {
+    overflow: visible;
+    min-height: 400px; /* Ensure there is room for products */
   }
 
   .pos-cart {

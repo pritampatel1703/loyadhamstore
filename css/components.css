@@ -549,6 +549,7 @@
   flex-direction: column;
   gap: var(--space-2);
   max-width: 380px;
+  pointer-events: none; /* Prevent invisible container from blocking clicks */
 }
 
 .toast {
@@ -558,6 +559,7 @@
   padding: var(--space-4);
   background: var(--bg-card);
   border-radius: var(--radius-lg);
+  pointer-events: auto; /* Restore clicks on the actual toast */
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border-light);
   animation: slideInRight 300ms ease;

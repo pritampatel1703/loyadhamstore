@@ -275,16 +275,24 @@ const POSModule = {
   },
 
   closeCameraScanner() {
-    if (this._html5QrCode) {
-      this._html5QrCode.stop().then(() => {
-        this._html5QrCode.clear();
-        this._html5QrCode = null;
-      }).catch(() => {
-        this._html5QrCode = null;
-      });
-    }
+    // Always remove the overlay first so the UI never gets stuck
     const overlay = document.getElementById('scanner-overlay');
     if (overlay) overlay.remove();
+
+    if (this._html5QrCode) {
+      try {
+        const scanner = this._html5QrCode;
+        this._html5QrCode = null;
+        scanner.stop().then(() => {
+          try { scanner.clear(); } catch(e) {}
+        }).catch(() => {
+          // Scanner wasn't running — that's fine
+        });
+      } catch (e) {
+        // stop() threw synchronously (scanner never started)
+        this._html5QrCode = null;
+      }
+    }
   },
 
   // =============================================

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loyadham Store Management</title>
+  
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/pos.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/dark-mode.css">
+  
+  <!-- Chart.js for dashboard -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="app-layout">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="App.toggleMobileSidebar()"></div>
+    
+    <aside class="sidebar" id="sidebar"></aside>
+    
+    <div class="app-main">
+      <header class="header" id="header"></header>
+      <main class="app-content" id="app-content"></main>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <div class="mobile-bottom-nav-inner">
+      <button class="mobile-nav-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
+        <span class="nav-icon">📊</span>
+        <span>Home</span>
+      </button>
+      <button class="mobile-nav-item" data-page="pos" onclick="App.navigate('pos')">
+        <span class="nav-icon">🛒</span>
+        <span>POS</span>
+      </button>
+      <button class="mobile-nav-item" data-page="inventory" onclick="App.navigate('inventory')">
+        <span class="nav-icon">📦</span>
+        <span>Products</span>
+      </button>
+      <button class="mobile-nav-item" data-page="sales" onclick="App.navigate('sales')">
+        <span class="nav-icon">💰</span>
+        <span>Sales</span>
+      </button>
+      <button class="mobile-nav-item" onclick="App.toggleMobileSidebar()">
+        <span class="nav-icon">☰</span>
+        <span>Menu</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Core Scripts -->
+  <script src="js/db.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  
+  <!-- Modules -->
+  <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/inventory.js"></script>
+  <script src="js/modules/categories.js"></script>
+  <script src="js/modules/pos.js"></script>
+  <script src="js/modules/sales.js"></script>
+  <script src="js/modules/purchases.js"></script>
+  <script src="js/modules/suppliers.js"></script>
+  <script src="js/modules/customers.js"></script>
+  <script src="js/modules/accounts.js"></script>
+  <script src="js/modules/branches.js"></script>
+  <script src="js/modules/transfers.js"></script>
+  <script src="js/modules/internal_issues.js"></script>
+  <script src="js/modules/festivals.js"></script>
+  <script src="js/modules/reports.js"></script>
+  <script src="js/modules/users.js"></script>
+  <script src="js/modules/settings.js"></script>
+  
+  <!-- Main App Script -->
+  <script src="js/app.js"></script>
+  
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      // Initialize the application once DOM is loaded
+      App.init();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Loyadham Store Management</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/dark-mode.css">
+  
+</head>
+<body class="login-page" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg-secondary);">
+  <div class="login-container animate-fadeInUp" style="width: 100%; max-width: 400px; padding: 20px;">
+    <div class="card">
+      <div class="card-body p-6">
+        <div class="text-center mb-6">
+          <div class="login-logo mb-4" style="font-size: 48px;">🙏</div>
+          <h1 class="font-bold text-2xl mb-1 text-primary">Loyadham Store</h1>
+          <p class="text-secondary text-sm">Please log in to continue</p>
+        </div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group mb-4">
+            <label class="form-label">Username</label>
+            <input type="text" id="username" class="form-control" required placeholder="admin">
+          </div>
+          
+          <div class="form-group mb-6">
+            <label class="form-label">Password</label>
+            <input type="password" id="password" class="form-control" required placeholder="admin123">
+          </div>
+
+          <button type="submit" class="btn btn-primary w-full" id="login-btn">
+            Log In
+          </button>
+        </form>
+        
+        <div id="login-error" class="mt-4 text-center text-sm" style="color: var(--danger); display: none;"></div>
+        
+        <div class="mt-6 text-center text-xs text-secondary" style="background: var(--bg-secondary); padding: 10px; border-radius: var(--radius-sm);">
+          <p class="font-semibold mb-1">Demo Accounts:</p>
+          <p>admin / admin123 (Super Admin)</p>
+          <p>manager / manager123 (Store Manager)</p>
+          <p>cashier / cashier123 (Cashier)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    const theme = localStorage.getItem('loy_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const userStr = document.getElementById('username').value;
+      const passStr = document.getElementById('password').value;
+      const errorDiv = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+      
+      errorDiv.style.display = 'none';
+      btn.textContent = 'Logging in...';
+      btn.disabled = true;
+      
+      try {
+        await LoyDB.init(); 
+        await LoyDB.seed(); 
+        
+        await Auth.login(userStr, passStr);
+        window.location.href = 'app.html';
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+        btn.textContent = 'Log In';
+        btn.disabled = false;
+      }
+    }
+    
+    window.addEventListener('DOMContentLoaded', async () => {
+      await LoyDB.init();
+      if (Auth.restore()) {
+        window.location.href = 'app.html';
+      }
+    });
+  </script>
+</body>
+</html>

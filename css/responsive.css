@@ -530,27 +530,37 @@
 }
 
 /* ---- Print Styles ---- */
+#print-receipt-container {
+  display: none;
+}
+
 @media print {
-  .sidebar, .header, .sidebar-overlay,
-  .toast-container, .search-overlay,
-  .notification-panel, .mobile-bottom-nav,
-  .page-header-right, .btn, button {
+  /* Hide the entire app UI */
+  .app-layout, .mobile-bottom-nav, .modal-backdrop, .toast-container {
     display: none !important;
   }
-
-  .app-main {
-    margin-left: 0 !important;
-  }
-
-  .app-content {
+  
+  /* Reset body for printing */
+  body {
+    background: white !important;
+    margin: 0 !important;
     padding: 0 !important;
-    padding-top: 0 !important;
   }
 
-  .card {
-    box-shadow: none;
-    border: 1px solid #ddd;
-    break-inside: avoid;
+  /* Show the receipt container and format it for an 80mm roll */
+  #print-receipt-container {
+    display: block !important;
+    width: 80mm; /* Standard thermal printer width */
+    margin: 0 auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    color: black;
+  }
+  
+  /* Reset page margins to avoid blank pages or headers/footers */
+  @page {
+    margin: 0;
+    size: auto;
   }
 
   body {

@@ -638,8 +638,82 @@ const POSModule = {
       + '<p class="text-secondary font-mono mb-6">' + sale.invoice_no + '</p>'
       + '<div class="d-flex gap-3 justify-center">'
       + '<button class="btn btn-outline" onclick="Modal.close()">New Sale</button>'
-      + '<button class="btn btn-primary" onclick="App.navigate(\'sales\'); Modal.close();">View Sales</button>'
-      + '</div></div>';
+      + `<button class="btn btn-primary" onclick='POSModule.printReceipt(${JSON.stringify(sale)}, ${JSON.stringify(items)})'><span style="margin-right: 8px;">🖨️</span>Print Bill</button>`
+      + '</div>'
+      + '<div class="text-center mt-4"><a href="#/sales" onclick="Modal.close()" class="text-primary text-sm" style="text-decoration: underline;">View Sales History</a></div>'
+      + '</div>';
     Modal.show('Sale Complete', body, 'sm');
+  },
+
+  printReceipt(sale, items) {
+    const container = document.getElementById('print-receipt-container');
+    if (!container) return;
+
+    let itemsHtml = '';
+    items.forEach(item => {
+      itemsHtml += `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <div style="flex: 1;">${item.qty} x ${Utils.currency(item.price)}</div>
+          <div>${Utils.currency(item.total)}</div>
+        </div>
+      `;
+    });
+
+    const dateStr = new Date(sale.date).toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    const receiptHtml = `
+      <div style="padding: 10px; width: 100%; box-sizing: border-box;">
+        <div style="text-align: center; margin-bottom: 15px;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: bold;">LOYADHAM STORE</h2>
+          <div style="font-size: 10px; color: #555;">Thank you for shopping with us!</div>
+        </div>
+        
+        <div style="border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 10px;">
+          <div><strong>Inv No:</strong> ${sale.invoice_no}</div>
+          <div><strong>Date:</strong> ${dateStr}</div>
+          <div><strong>Cashier:</strong> ${sale.user}</div>
+        </div>
+
+        <div style="border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px;">
+            <div>Item</div>
+            <div>Amount</div>
+          </div>
+          ${itemsHtml}
+        </div>
+
+        <div style="margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between;">
+            <div>Subtotal:</div>
+            <div>${Utils.currency(sale.subtotal)}</div>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <div>GST:</div>
+            <div>${Utils.currency(sale.gst_total)}</div>
+          </div>
+          ${sale.discount > 0 ? `
+          <div style="display: flex; justify-content: space-between;">
+            <div>Discount:</div>
+            <div>-${Utils.currency(sale.discount)}</div>
+          </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 5px; border-top: 1px solid #000; padding-top: 5px;">
+            <div>Total:</div>
+            <div>${Utils.currency(sale.total)}</div>
+          </div>
+        </div>
+
+        <div style="text-align: center; font-size: 11px; margin-top: 20px;">
+          <div>Payment Mode: <strong>${sale.payment_method.toUpperCase()}</strong></div>
+          <div style="margin-top: 10px; font-weight: bold;">*** PLEASE VISIT AGAIN ***</div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = receiptHtml;
+    window.print();
   }
 };
